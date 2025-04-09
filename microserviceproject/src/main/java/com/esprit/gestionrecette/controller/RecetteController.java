@@ -23,39 +23,37 @@ public class RecetteController {
     @Autowired
     private PdfService pdfService;
 
-    // Créer une recette
     @PostMapping
     public Recette createRecette(@RequestBody Recette recette) {
         return recetteService.createRecette(recette);
     }
 
-    // Lire toutes les recettes
     @GetMapping
     public List<Recette> getAllRecettes() {
         return recetteService.getAllRecettes();
     }
 
-    // Lire une recette par son ID
-    @GetMapping("update/{id}")
+    @GetMapping("details/{id}")
     public Optional<Recette> getRecetteById(@PathVariable Long id) {
         return recetteService.getRecetteById(id);
     }
 
-    // Mettre à jour une recette
-    @PutMapping("/{id}")
+    @PutMapping("update/{id}")
     public Recette updateRecette(@PathVariable Long id, @RequestBody Recette recetteDetails) {
         return recetteService.updateRecette(id, recetteDetails);
     }
 
 
-    // Supprimer une recette
     @DeleteMapping("delete/{id}")
     public void deleteRecette(@PathVariable Long id) {
         recetteService.deleteRecette(id);
     }
 
+    @GetMapping("/search")
+    public List<Recette> searchByTitre(@RequestParam String keyword) {
+        return recetteService.searchRecetteByTitreLike(keyword);
+    }
 
-    // Télécharger une recette en PDF
     @GetMapping("/download/{id}")
     public ResponseEntity<byte[]> downloadRecettePdf(@PathVariable Long id) throws IOException {
         Optional<Recette> recetteOptional = recetteService.getRecetteById(id);
@@ -70,6 +68,8 @@ public class RecetteController {
                 .contentType(MediaType.APPLICATION_PDF)
                 .body(pdfBytes);
     }
+
+
 }
 
 

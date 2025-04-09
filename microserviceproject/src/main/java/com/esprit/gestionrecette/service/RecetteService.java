@@ -14,22 +14,22 @@ public class RecetteService {
     @Autowired
     private Recetterepository recetteRepository;
 
-    // Créer une recette
+
     public Recette createRecette(Recette recette) {
         return recetteRepository.save(recette);
     }
 
-    // Lire toutes les recettes
+
     public List<Recette> getAllRecettes() {
         return recetteRepository.findAll();
     }
 
-    // Lire une recette par son ID
+
     public Optional<Recette> getRecetteById(Long id) {
         return recetteRepository.findById(id);
     }
 
-    // Mettre à jour une recette
+
     public Recette updateRecette(Long id, Recette recetteDetails) {
         Recette recette = recetteRepository.findById(id).orElseThrow(() -> new RuntimeException("Recette non trouvée"));
         recette.setTitre(recetteDetails.getTitre());
@@ -40,8 +40,12 @@ public class RecetteService {
         return recetteRepository.save(recette);
     }
 
-    // Supprimer une recette
+
     public void deleteRecette(Long id) {
         recetteRepository.deleteById(id);
+    }
+
+    public List<Recette> searchRecetteByTitreLike(String keyword) {
+        return recetteRepository.findByTitreContainingIgnoreCase(keyword);
     }
 }

@@ -2,7 +2,7 @@ package com.esprit.gestionrecette.service;
 
 import com.esprit.gestionrecette.entites.Recette;
 import com.itextpdf.io.font.constants.StandardFonts;
-import com.itextpdf.kernel.colors.Color;
+import com.itextpdf.io.image.ImageDataFactory;
 import com.itextpdf.kernel.colors.ColorConstants;
 import com.itextpdf.kernel.font.PdfFont;
 import com.itextpdf.kernel.font.PdfFontFactory;
@@ -10,102 +10,144 @@ import com.itextpdf.kernel.geom.PageSize;
 import com.itextpdf.kernel.pdf.PdfDocument;
 import com.itextpdf.kernel.pdf.PdfWriter;
 import com.itextpdf.layout.Document;
-import com.itextpdf.layout.element.Div;
-import com.itextpdf.layout.element.Paragraph;
-import com.itextpdf.layout.element.Text;
+import com.itextpdf.layout.borders.SolidBorder;
+import com.itextpdf.layout.element.*;
+import com.itextpdf.layout.properties.HorizontalAlignment;
 import com.itextpdf.layout.properties.TextAlignment;
-import com.itextpdf.layout.properties.VerticalAlignment;
+import com.itextpdf.layout.properties.UnitValue;
+
 import org.springframework.stereotype.Service;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.io.InputStream;
+import java.net.MalformedURLException;
 
 @Service
 public class PdfService {
 
+    // Styling constants
+    private static final float PAGE_MARGIN = 40f;
+    private static final int TITLE_FONT_SIZE = 26;
+    private static final int SECTION_TITLE_FONT_SIZE = 16;
+    private static final int CONTENT_FONT_SIZE = 12;
+    private static final int FOOTER_FONT_SIZE = 10;
+
+    private static final String DEFAULT_FONT = StandardFonts.HELVETICA;
+    private static final String BOLD_FONT = StandardFonts.HELVETICA_BOLD;
+    private static final String FOOTER_TEXT = "© 2025 GestionRecette - Tous droits réservés";
+
     public byte[] generatePdfForRecette(Recette recette) throws IOException {
-        ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream();
-        PdfWriter writer = new PdfWriter(byteArrayOutputStream);
-        PdfDocument pdfDocument = new PdfDocument(writer);
+        if (recette == null) throw new IllegalArgumentException("Recette cannot be null");
 
-        Document document = new Document(pdfDocument, PageSize.A4);
-        document.setMargins(40, 40, 40, 40);
+        try (ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream()) {
+            PdfWriter writer = new PdfWriter(byteArrayOutputStream);
+            PdfDocument pdfDoc = new PdfDocument(writer);
+            Document doc = new Document(pdfDoc, PageSize.A4);
+            doc.setMargins(PAGE_MARGIN, PAGE_MARGIN, PAGE_MARGIN + 20, PAGE_MARGIN);
 
-        PdfFont fontRegular = PdfFontFactory.createFont();
-        PdfFont fontBold = PdfFontFactory.createFont(StandardFonts.HELVETICA_BOLD);
+            PdfFont fontRegular = PdfFontFactory.createFont(DEFAULT_FONT);
+            PdfFont fontBold = PdfFontFactory.createFont(BOLD_FONT);
 
-        Color primaryColor = ColorConstants.BLUE;
-        Color secondaryColor = ColorConstants.DARK_GRAY;
-        Color accentColor = ColorConstants.RED;
+            // Add image if exists
+            addImageHeader(doc, recette.getImage());
 
-        // En-tête
-        Div header = new Div()
-                .setBackgroundColor(primaryColor, 0.1f)
-                .setPadding(15)
-                .setTextAlignment(TextAlignment.CENTER);
+            // Titre
+            Paragraph title = new Paragraph(safeGet(recette.getTitre()))
+                    .setFont(fontBold)
+                    .setFontSize(TITLE_FONT_SIZE)
+                    .setTextAlignment(TextAlignment.CENTER)
+                    .setFontColor(ColorConstants.BLUE)
+                    .setMarginBottom(20);
+            doc.add(title);
 
-        Text title = new Text(recette.getTitre())
+            // Sections stylées
+            addSectionCard(doc, "Description", safeGet(recette.getDescription()), fontBold, fontRegular);
+            addSectionCard(doc, "Ingrédients", formatList(safeGet(recette.getIngredients())), fontBold, fontRegular);
+            addSectionCard(doc, "Étapes de préparation", formatList(safeGet(recette.getEtape())), fontBold, fontRegular);
+
+            // Footer
+            addFooter(doc, fontRegular);
+
+            doc.close();
+            return byteArrayOutputStream.toByteArray();
+        }
+    }
+
+    private void addImageHeader(Document document, String imagePath) {
+        try {
+            Image image;
+
+            if (imagePath.startsWith("http")) {
+                // Si c'est un lien en ligne
+                image = new Image(ImageDataFactory.create(imagePath));
+            } else {
+                // Lire depuis src/main/resources/static/...
+                String resourcePath = "static/" + imagePath; // juste le nom du fichier ex: "pizza.jpg"
+                InputStream inputStream = getClass().getClassLoader().getResourceAsStream(resourcePath);
+                if (inputStream == null) {
+                    System.err.println("Image introuvable dans resources: " + resourcePath);
+                    return;
+                }
+                byte[] imageBytes = inputStream.readAllBytes();
+                image = new Image(ImageDataFactory.create(imageBytes));
+            }
+
+            image.setWidth(UnitValue.createPercentValue(100));
+            image.setAutoScaleHeight(true);
+            image.setHorizontalAlignment(HorizontalAlignment.CENTER);
+            image.setMarginBottom(15);
+            document.add(image);
+
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+
+
+
+    private void addSectionCard(Document doc, String title, String content, PdfFont fontBold, PdfFont fontRegular) {
+        Div card = new Div()
+                .setPadding(12)
+                .setBorder(new SolidBorder(ColorConstants.LIGHT_GRAY, 0.8f))
+                .setBackgroundColor(ColorConstants.LIGHT_GRAY, 0.08f)
+                .setMarginBottom(15);
+
+        Paragraph sectionTitle = new Paragraph(title)
                 .setFont(fontBold)
-                .setFontSize(24)
-                .setFontColor(primaryColor);
-
-        header.add(new Paragraph(title));
-        document.add(header);
-
-        // Section Description
-        addSectionTitle(document, "Description", fontBold, secondaryColor);
-        addSectionContent(document, recette.getDescription(), fontRegular);
-
-        // Section Ingrédients
-        addSectionTitle(document, "Ingrédients", fontBold, secondaryColor);
-        addSectionContent(document, formatList(recette.getIngredients()), fontRegular);
-
-        // Section Étapes de préparation
-        addSectionTitle(document, "Étapes de préparation", fontBold, secondaryColor);
-        addSectionContent(document, formatList(recette.getEtape()), fontRegular);
-
-        // Pied de page
-        Paragraph footer = new Paragraph("© 2024 GestionRecette - Tous droits réservés")
-                .setFont(fontRegular)
-                .setFontSize(10)
-                .setFontColor(secondaryColor)
-                .setTextAlignment(TextAlignment.CENTER)
-                .setFixedPosition(document.getLeftMargin(), 20,
-                        document.getPdfDocument().getDefaultPageSize().getWidth() - document.getLeftMargin() - document.getRightMargin());
-
-        document.add(footer);
-        document.close();
-
-        return byteArrayOutputStream.toByteArray();
-    }
-
-    private void addSectionTitle(Document document, String title, PdfFont font, Color color) {
-        Paragraph paragraph = new Paragraph(title)
-                .setFont(font)
-                .setFontSize(16)
-                .setFontColor(color)
-                .setMarginTop(20)
-                .setMarginBottom(10);
-        document.add(paragraph);
-
-        document.add(new Paragraph("")
-                .setHeight(1)
-                .setBackgroundColor(color)
-                .setMarginBottom(15));
-    }
-
-    private void addSectionContent(Document document, String content, PdfFont font) {
-        Paragraph paragraph = new Paragraph(content)
-                .setFont(font)
-                .setFontSize(12)
+                .setFontSize(SECTION_TITLE_FONT_SIZE)
+                .setFontColor(ColorConstants.DARK_GRAY)
                 .setMarginBottom(5);
-        document.add(paragraph);
+
+        Paragraph sectionContent = new Paragraph(content)
+                .setFont(fontRegular)
+                .setFontSize(CONTENT_FONT_SIZE)
+                .setFontColor(ColorConstants.BLACK)
+                .setMultipliedLeading(1.3f);
+
+        card.add(sectionTitle);
+        card.add(sectionContent);
+        doc.add(card);
+    }
+
+    private void addFooter(Document document, PdfFont fontRegular) {
+        float pageWidth = document.getPdfDocument().getDefaultPageSize().getWidth();
+        Paragraph footer = new Paragraph(FOOTER_TEXT)
+                .setFont(fontRegular)
+                .setFontSize(FOOTER_FONT_SIZE)
+                .setFontColor(ColorConstants.GRAY)
+                .setTextAlignment(TextAlignment.CENTER)
+                .setFixedPosition(PAGE_MARGIN, 20, pageWidth - 2 * PAGE_MARGIN)
+                .setOpacity(0.6f);
+        document.add(footer);
+    }
+
+    private String safeGet(String value) {
+        return value != null && !value.isBlank() ? value : "Non spécifié";
     }
 
     private String formatList(String text) {
-        if (text == null || text.isEmpty()) {
-            return "";
-        }
+        if (text == null || text.isEmpty()) return "Aucune information disponible";
         return "• " + text.replace("\n", "\n• ");
     }
 }
