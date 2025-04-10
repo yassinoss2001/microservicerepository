@@ -24,6 +24,10 @@ public class Avis implements Serializable {
 
     private boolean resolu = false; // Indique si une réclamation a été traitée
 
+    public int getId() {
+        return id;
+    }
+
     public String getClientNom() {
         return clientNom;
     }
